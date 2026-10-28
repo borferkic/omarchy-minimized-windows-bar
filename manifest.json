@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 1,
+  "id": "io.github.borferkic.minimized-windows-bar",
+  "name": "Minimized Windows Bar",
+  "version": "1.0.0",
+  "author": "borferkic",
+  "license": "MIT",
+  "description": "A slim bar at the bottom of each monitor listing the windows you minimized from it, in the shell's theme colors. Click one to bring it back.",
+  "kinds": [
+    "service"
+  ],
+  "entryPoints": {
+    "service": "Service.qml"
+  }
+}

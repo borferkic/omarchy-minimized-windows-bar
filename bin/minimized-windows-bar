@@ -1,0 +1,42 @@
+#!/usr/bin/env bash
+# minimized-windows-bar              -> minimize the active window to the bar of ITS monitor
+# minimized-windows-bar restore ADDR -> restore a window (by address) to its original monitor/workspace
+# minimized-windows-bar restore-all  -> restore every minimized window
+# minimized-windows-bar list         -> JSON of minimized windows (with their origin monitor)
+set -u
+SPECIAL="special:minimized"
+STATE="${XDG_CACHE_HOME:-$HOME/.cache}/minimized-windows-bar-state.json"
+[ -s "$STATE" ] || echo '{}' > "$STATE"
+
+restore() {
+  local addr="$1" mon ws
+  mon=$(jq -r --arg a "$addr" '.[$a].monitor // empty' "$STATE")
+  ws=$(jq -r --arg a "$addr" '.[$a].workspace // empty' "$STATE")
+  # si el workspace de origen ya no existe, usar el activo de ese monitor
+  if [ -z "$ws" ] || ! hyprctl workspaces -j | jq -e --argjson w "$ws" 'any(.[]; .id==$w)' >/dev/null; then
+    ws=$(hyprctl monitors -j | jq -r --arg m "$mon" '(.[] | select(.name==$m) | .activeWorkspace.id) // empty')
+    [ -n "$ws" ] || ws=$(hyprctl activeworkspace -j | jq -r '.id')
+  fi
+  hyprctl dispatch "hl.dsp.window.move({ workspace = \"$ws\", window = \"address:$addr\" })" >/dev/null
+  hyprctl dispatch "hl.dsp.focus({ window = \"address:$addr\" })" >/dev/null
+  jq --arg a "$addr" 'del(.[$a])' "$STATE" > "$STATE.tmp" && mv "$STATE.tmp" "$STATE"
+}
+
+case "${1:-minimize}" in
+  restore) restore "$2" ;;
+  restore-all)
+    "$0" list | jq -r '.[].address' | while read -r a; do restore "$a"; done ;;
+  list)
+    hyprctl clients -j | jq -c --arg s "$SPECIAL" --slurpfile st "$STATE" \
+      '[.[] | select(.workspace.name==$s) | . as $c
+        | {address, class, title, monitor: ($st[0][$c.address].monitor // "")}]' ;;
+  *)
+    info=$(hyprctl activewindow -j)
+    addr=$(jq -r '.address // empty' <<<"$info")
+    [ -n "$addr" ] || exit 0
+    [ "$(jq -r '.workspace.name' <<<"$info")" = "$SPECIAL" ] && exit 0
+    mon=$(hyprctl monitors -j | jq -r --argjson id "$(jq '.monitor' <<<"$info")" '.[] | select(.id==$id) | .name')
+    ws=$(jq -r '.workspace.id' <<<"$info")
+    jq --arg a "$addr" --arg m "$mon" --argjson w "$ws" '.[$a]={monitor:$m,workspace:$w}' "$STATE" > "$STATE.tmp" && mv "$STATE.tmp" "$STATE"
+    hyprctl dispatch "hl.dsp.window.move({ workspace = \"$SPECIAL\", follow = false, window = \"address:$addr\" })" >/dev/null ;;
+esac
