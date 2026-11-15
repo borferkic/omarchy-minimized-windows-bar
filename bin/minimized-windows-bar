@@ -34,7 +34,11 @@ case "${1:-minimize}" in
     info=$(hyprctl activewindow -j)
     addr=$(jq -r '.address // empty' <<<"$info")
     [ -n "$addr" ] || exit 0
-    [ "$(jq -r '.workspace.name' <<<"$info")" = "$SPECIAL" ] && exit 0
+    # Ya está minimizada, pero su workspace especial está abierto: cerrar esa vista
+    if [ "$(jq -r '.workspace.name' <<<"$info")" = "$SPECIAL" ]; then
+      hyprctl dispatch "hl.dsp.workspace.toggle_special(\"${SPECIAL#special:}\")" >/dev/null
+      exit 0
+    fi
     mon=$(hyprctl monitors -j | jq -r --argjson id "$(jq '.monitor' <<<"$info")" '.[] | select(.id==$id) | .name')
     ws=$(jq -r '.workspace.id' <<<"$info")
     jq --arg a "$addr" --arg m "$mon" --argjson w "$ws" '.[$a]={monitor:$m,workspace:$w}' "$STATE" > "$STATE.tmp" && mv "$STATE.tmp" "$STATE"
