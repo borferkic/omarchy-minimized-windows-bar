@@ -1,12 +1,17 @@
 #!/usr/bin/env bash
 # minimized-windows-bar              -> minimize the active window to the bar of ITS monitor
-# minimized-windows-bar restore ADDR -> restore a window (by address) to its original monitor/workspace
+# minimized-windows-bar restore ADDR... -> restore windows (by address) to their original monitor/workspace
 # minimized-windows-bar restore-all  -> restore every minimized window
 # minimized-windows-bar list         -> JSON of minimized windows (with their origin monitor)
 set -u
 SPECIAL="special:minimized"
 STATE="${XDG_CACHE_HOME:-$HOME/.cache}/minimized-windows-bar-state.json"
 [ -s "$STATE" ] || echo '{}' > "$STATE"
+
+# Serializa todo acceso al estado: la barra llama a `list` en cada evento de
+# Hyprland y no debe podar una entrada que `minimize` acaba de escribir.
+exec 9>"$STATE.lock"
+flock 9
 
 restore() {
   local addr="$1" mon ws
@@ -22,14 +27,22 @@ restore() {
   jq --arg a "$addr" 'del(.[$a])' "$STATE" > "$STATE.tmp" && mv "$STATE.tmp" "$STATE"
 }
 
+minimized() {
+  hyprctl clients -j | jq -c --arg s "$SPECIAL" '[.[] | select(.workspace.name==$s)]'
+}
+
 case "${1:-minimize}" in
-  restore) restore "$2" ;;
+  restore) shift; for a in "$@"; do restore "$a"; done ;;
   restore-all)
-    "$0" list | jq -r '.[].address' | while read -r a; do restore "$a"; done ;;
+    minimized | jq -r '.[].address' | while read -r a; do restore "$a"; done ;;
   list)
-    hyprctl clients -j | jq -c --arg s "$SPECIAL" --slurpfile st "$STATE" \
-      '[.[] | select(.workspace.name==$s) | . as $c
-        | {address, class, title, monitor: ($st[0][$c.address].monitor // "")}]' ;;
+    wins=$(minimized)
+    # podar entradas de ventanas que ya no están minimizadas (cerradas o restauradas por fuera)
+    pruned=$(jq -c --argjson w "$wins" 'with_entries(select(.key as $k | any($w[]; .address==$k)))' "$STATE")
+    if [ "$pruned" != "$(jq -c . "$STATE")" ]; then
+      printf '%s\n' "$pruned" > "$STATE.tmp" && mv "$STATE.tmp" "$STATE"
+    fi
+    jq -c --argjson st "$pruned" '[.[] | {address, class, title, monitor: ($st[.address].monitor // "")}]' <<<"$wins" ;;
   *)
     info=$(hyprctl activewindow -j)
     addr=$(jq -r '.address // empty' <<<"$info")

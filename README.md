@@ -6,9 +6,20 @@ An [Omarchy](https://omarchy.org) shell plugin by [borferkic](https://github.com
 
 A slim bar at the bottom of each monitor that lists the windows you minimized from that monitor. Click a name to bring the window back to the workspace it came from.
 
-- One bar per monitor, shown only while that monitor has minimized windows.
-- App name and window title only, no icons.
+- One bar per monitor, shown only while that monitor has minimized windows. It slides in and out, and the space it reserves grows with it, so windows resize smoothly instead of jumping.
+- App name and window title only, no icons, each window between retro pixel-art brackets: `[ Brave - Prime Video ]`.
 - Colors, font and height follow the active Omarchy theme, so it changes with the top bar when you switch themes.
+- Updates on Hyprland events instead of polling, so it costs nothing while idle.
+- With many windows, the buttons share the width so none falls off the screen.
+
+## Mouse
+
+| Action | Effect |
+|---|---|
+| Left click | Restore the window |
+| Middle click | Close the window |
+| Right click | Restore every window on that monitor |
+| Hover | Tooltip with the full title |
 
 ## Requirements
 
@@ -31,7 +42,7 @@ o.bind("SUPER + N", "Minimize window", mwb)
 o.bind("SUPER + SHIFT + ALT + N", "Restore all windows", mwb .. " restore-all")
 ```
 
-Helper commands: no argument minimizes the active window, `restore <address>` restores one, `restore-all` restores every window, `list` prints them as JSON.
+Helper commands: no argument minimizes the active window, `restore <address>...` restores one or more, `restore-all` restores every window, `list` prints them as JSON.
 
 ## Remove
 
@@ -42,3 +53,5 @@ omarchy plugin remove io.github.borferkic.minimized-windows-bar
 ## License
 
 MIT, see [LICENSE](LICENSE).
+
+The brackets use [Press Start 2P](https://fonts.google.com/specimen/Press+Start+2P), bundled in `fonts/` under the SIL Open Font License, see [fonts/OFL.txt](fonts/OFL.txt).
